@@ -3,9 +3,15 @@ import 'dotenv/config';
 import fs from 'fs/promises';
 import path from 'path';
 
+// Para que o __dirname funcione com módulos ES6, precisamos de um pequeno ajuste
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 class ISetApiProvider {
 	constructor() {
 		this.apiKey = process.env.ISET_API_KEY;
+		this.apiUser = process.env.ISET_API_USER;
 		this.baseURL = `${process.env.ISET_API_BASE_URL}/ws/v1`;
 		this.tokenPath = path.resolve(__dirname, '..', '..', '..', '..', 'tmp', 'iset-token.json');
 		if (!this.apiKey || !process.env.ISET_API_BASE_URL) {
@@ -22,6 +28,8 @@ class ISetApiProvider {
 			if (config.url === '/oauth') {
 				return config;
 			}
+
+			await this._loadTokenFromFile();
 			if (!this.token || this.tokenExpiresAt < new Date()) {
 				console.log('Token inválido ou expirado. Autenticando...');
 				await this._authenticate();
@@ -37,13 +45,13 @@ class ISetApiProvider {
 	async _loadTokenFromFile() {
 		// Se já temos um token válido na memória, não precisamos ler o arquivo de novo.
 		if (this.token && this.tokenExpiresAt > new Date()) {
+			console.log('vai retornar');
 			return;
 		}
-
 		try {
+			console.log(this.tokenPath);
 			const fileContent = await fs.readFile(this.tokenPath, 'utf-8');
 			const tokenData = JSON.parse(fileContent);
-
 			// Verificamos se o token do arquivo ainda é válido
 			if (new Date(tokenData.expiresAt) > new Date()) {
 				this.token = tokenData.token;
@@ -78,13 +86,18 @@ class ISetApiProvider {
 	}
 	async _authenticate() {
 		try {
-			const basicAuth = Buffer.from(`${this.apiKey}:`).toString('base64');
-			const authResponse = await axios.post(`${this.baseURL}/oauth`, null, {
-				headers: {
-					Authorization: `Basic ${basicAuth}`,
-				},
-			});
-			const { token, expires_in } = authResponse.data;
+			const basicAuth = btoa(`${this.apiUser}:${this.apiKey}`);
+			const authResponse = await axios.post(
+				`${this.baseURL}/oauth`,
+				{},
+				{
+					headers: {
+						Authorization: `Basic ${basicAuth}`,
+					},
+				}
+			);
+			console.log(authResponse);
+			const { token, expires_in } = await authResponse.data;
 			if (!token) {
 				throw new Error('Falha na authenticação: token не recebido.');
 			}
@@ -113,9 +126,7 @@ class ISetApiProvider {
 				query: term,
 				limit: limit,
 			});
-			console.log('Produtos encontrados!');
-			console.log(response.data.statusCode);
-			return response.data.result;
+			return response.data;
 		} catch (e) {
 			console.error('Erro ao buscar produtos:', e.response?.data || e.message);
 			return [];
