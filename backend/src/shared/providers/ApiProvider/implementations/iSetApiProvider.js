@@ -35,7 +35,7 @@ class ISetApiProvider {
 				await this._authenticate();
 			}
 			config.headers.Authorization = `Bearer ${this.token}`;
-
+			config.headers['access-token'] = this.token;
 			return config;
 		});
 	}
@@ -49,7 +49,6 @@ class ISetApiProvider {
 			return;
 		}
 		try {
-			console.log(this.tokenPath);
 			const fileContent = await fs.readFile(this.tokenPath, 'utf-8');
 			const tokenData = JSON.parse(fileContent);
 			// Verificamos se o token do arquivo ainda é válido
@@ -96,14 +95,18 @@ class ISetApiProvider {
 					},
 				}
 			);
-			console.log(authResponse);
 			const { token, expires_in } = await authResponse.data;
 			if (!token) {
 				throw new Error('Falha na authenticação: token не recebido.');
 			}
 			this.token = token;
-			const expiresInSeconds = expires_in - 60;
-			this.tokenExpiresAt = new Date(new Date().getTime() + expiresInSeconds * 1000);
+
+			const expiresAtTimestampMs = expires_in * 1000;
+			this.tokenExpiresAt = new Date(expiresAtTimestampMs);
+
+			// Aplicamos a margem de segurança
+			const safetyMarginMilliseconds = 60 * 1000; // 60 segundos
+			this.tokenExpiresAt.setTime(this.tokenExpiresAt.getTime());
 
 			console.log('Autenticado com sucesso! O token é válido até:', this.tokenExpiresAt.toLocaleTimeString('pt-BR'));
 
@@ -129,6 +132,49 @@ class ISetApiProvider {
 			return response.data;
 		} catch (e) {
 			console.error('Erro ao buscar produtos:', e.response?.data || e.message);
+			return [];
+		}
+	}
+	async orderStatusList() {
+		try {
+			console.log('Buscando os status disponíveis');
+			const response = await this.api.get('/order/status/list');
+			return response.data;
+		} catch (e) {
+			console.error('Erro ao buscar status:', e.response?.data || e.message);
+		}
+	}
+	/**
+	 * Busca por pedidos que podem ser considerados "carrinhos abandonados".
+	 * A lógica é buscar pedidos com status "Pedido Realizado" que não foram
+	 * modificados recentemente.
+	 * * @param {Date} startDate A data/hora de início para a janela de busca (mais antiga).
+	 * @param {Date} endDate A data/hora de fim para a janela de busca (mais recente).
+	 * @returns {Promise<Array>} Uma promessa que resolve para um array de pedidos.
+	 */
+	async getAbandonedCarts(startDate, endDate) {
+		try {
+			const formatDate = (date) => date.toISOString().slice(0, 19).replace('T', ' ');
+			const fromDate = formatDate(startDate);
+			const toDate = formatDate(endDate);
+
+			console.log(fromDate);
+			console.log(toDate);
+
+			console.log(`Buscando carrinhos abandonados ( pedidos não modificados entre ${fromDate} e ${toDate} )...`);
+
+			const response = await this.api.post('/order/list', {
+				status: 2,
+				'date_modified[from]': fromDate,
+				'date_modified[to]': toDate,
+				order: 'orders_id',
+				order_type: 'desc',
+			});
+
+			console.log(`${response.data.ordersFound} pedidos encontrados nesta janela.`);
+			return response.data.orders || [];
+		} catch (e) {
+			console.error('Erro ao buscar carrinhos abandonados:', e.response?.data || e.message);
 			return [];
 		}
 	}
