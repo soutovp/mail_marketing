@@ -154,7 +154,7 @@ class ISetApiProvider {
 	 */
 	async getAbandonedCarts(startDate, endDate) {
 		try {
-			const formatDate = (date) => date.toISOString().slice(0, 19).replace('T', ' ');
+			const formatDate = (date) => date.toISOString().slice(0, 10).replace('T', ' ');
 			const fromDate = formatDate(startDate);
 			const toDate = formatDate(endDate);
 
@@ -165,8 +165,11 @@ class ISetApiProvider {
 
 			const response = await this.api.post('/order/list', {
 				status: 2,
-				'date_modified[from]': fromDate,
-				'date_modified[to]': toDate,
+				offset: '0,1000',
+				date: {
+					from: fromDate,
+					to: toDate,
+				},
 				order: 'orders_id',
 				order_type: 'desc',
 			});
