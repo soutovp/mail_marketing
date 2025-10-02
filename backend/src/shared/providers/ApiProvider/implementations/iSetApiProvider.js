@@ -45,7 +45,6 @@ class ISetApiProvider {
 	async _loadTokenFromFile() {
 		// Se já temos um token válido na memória, não precisamos ler o arquivo de novo.
 		if (this.token && this.tokenExpiresAt > new Date()) {
-			console.log('vai retornar');
 			return;
 		}
 		try {
@@ -55,7 +54,7 @@ class ISetApiProvider {
 			if (new Date(tokenData.expiresAt) > new Date()) {
 				this.token = tokenData.token;
 				this.tokenExpiresAt = new Date(tokenData.expiresAt);
-				console.log('Token carregado do arquivo com sucesso.');
+				console.log('Authenticação carregado.');
 			}
 		} catch (error) {
 			// Se o arquivo não existe (error.code === 'ENOENT'), é normal na primeira execução.
@@ -78,10 +77,20 @@ class ISetApiProvider {
 			// Garante que o diretório /tmp exista
 			await fs.mkdir(path.dirname(this.tokenPath), { recursive: true });
 			await fs.writeFile(this.tokenPath, JSON.stringify(tokenData, null, 2));
-			console.log('Token salvo com sucesso em:', this.tokenPath);
+			console.log('Authenticação salvo com sucesso em:', this.tokenPath);
 		} catch (error) {
 			console.error('Erro ao salvar o arquivo de token:', error);
 		}
+	}
+	async updateAuthenticatedTime() {
+		console.log('Atualizando a validade da Authenticação...');
+		this._loadTokenFromFile();
+		const fifteenMinutes = 15 * 60 * 1000;
+		const newTime = new Date().getTime() + fifteenMinutes;
+
+		this.tokenExpiresAt.setTime(newTime);
+		this._saveTokenToFile();
+		console.log('Validade atualizada com sucesso -', this.tokenExpiresAt.toLocaleTimeString('pt-BR'));
 	}
 	async _authenticate() {
 		try {
@@ -105,7 +114,7 @@ class ISetApiProvider {
 			this.tokenExpiresAt = new Date(expiresAtTimestampMs);
 
 			// Aplicamos a margem de segurança
-			const safetyMarginMilliseconds = 60 * 1000; // 60 segundos
+			// const safetyMarginMilliseconds = 60 * 1000; // 60 segundos
 			this.tokenExpiresAt.setTime(this.tokenExpiresAt.getTime());
 
 			console.log('Autenticado com sucesso! O token é válido até:', this.tokenExpiresAt.toLocaleTimeString('pt-BR'));
@@ -129,6 +138,7 @@ class ISetApiProvider {
 				query: term,
 				limit: limit,
 			});
+			this.updateAuthenticatedTime();
 			return response.data;
 		} catch (e) {
 			console.error('Erro ao buscar produtos:', e.response?.data || e.message);
@@ -139,6 +149,7 @@ class ISetApiProvider {
 		try {
 			console.log('Buscando os status disponíveis');
 			const response = await this.api.get('/order/status/list');
+			this.updateAuthenticatedTime();
 			return response.data;
 		} catch (e) {
 			console.error('Erro ao buscar status:', e.response?.data || e.message);
@@ -148,8 +159,8 @@ class ISetApiProvider {
 	 * Busca por pedidos que podem ser considerados "carrinhos abandonados".
 	 * A lógica é buscar pedidos com status "Pedido Realizado" que não foram
 	 * modificados recentemente.
-	 * * @param {Date} startDate A data/hora de início para a janela de busca (mais antiga).
-	 * @param {Date} endDate A data/hora de fim para a janela de busca (mais recente).
+	 * @param {Date} startDate A data/hora em milisegundos de início para a janela de busca (mais antiga).
+	 * @param {Date} endDate A data/hora em milisegundos de fim para a janela de busca (mais recente).
 	 * @returns {Promise<Array>} Uma promessa que resolve para um array de pedidos.
 	 */
 	async getAbandonedCarts(startDate, endDate) {
@@ -158,10 +169,7 @@ class ISetApiProvider {
 			const fromDate = formatDate(startDate);
 			const toDate = formatDate(endDate);
 
-			console.log(fromDate);
-			console.log(toDate);
-
-			console.log(`Buscando carrinhos abandonados ( pedidos não modificados entre ${fromDate} e ${toDate} )...`);
+			console.log(`Colhendo entre: ${new Date(startDate).toLocaleString('pt-BR').slice(0, 10)} ~ ${new Date(endDate).toLocaleString('pt-BR').slice(0, 10)}`);
 
 			const response = await this.api.post('/order/list', {
 				status: 2,
@@ -173,7 +181,7 @@ class ISetApiProvider {
 				order: 'orders_id',
 				order_type: 'desc',
 			});
-
+			await this.updateAuthenticatedTime();
 			console.log(`${response.data.ordersFound} pedidos encontrados nesta janela.`);
 			return response.data.orders || [];
 		} catch (e) {

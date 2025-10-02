@@ -11,10 +11,10 @@ import { fileURLToPath } from 'url';
 	const iSetProvider = new ISetApiProvider();
 
 	const now = new Date();
-	const threeHourAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-	const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+	const startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+	const endingDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
-	const abandonedCarts = await iSetProvider.getAbandonedCarts(threeHourAgo, twoHoursAgo);
+	const abandonedCarts = await iSetProvider.getAbandonedCarts(startDate, endingDate);
 
 	if (abandonedCarts.length > 0) {
 		const arr = [];
