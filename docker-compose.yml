@@ -1,0 +1,17 @@
+# docker-compose.yml
+
+version: '3.9'
+
+services:
+    postgres_db:
+        image: postgres:15-alpine #Usamos uma imagem oficial e leve do Postgres
+        container_name: meu_app_postgres
+        restart: always
+        ports:
+            - '5432:5432'
+        environment:
+            - POSTGRES_USER=docker
+            - POSTGRES_PASSWORD=docker
+            - POSTGRES_DB=meu_app_db
+        volumes:
+            - ./pgdata:/var/lib/postgresql/data # Garante que os dados sejam salvos localmente ee não se percam

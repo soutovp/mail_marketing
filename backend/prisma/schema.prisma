@@ -1,0 +1,31 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Nosso primeiro modelo de dados
+model AbandonedCart {
+  id            String   @id @default(uuid()) // Chave primária com um ID único universal
+  
+  orderId       Int      @unique // O ID do pedido vindo da iSet, deve ser único
+  customerName  String
+  customerEmail String
+  orderTotal    Float
+
+  funnelStep    Int      @default(0) // Para controlar em qual passo do funil o cliente está (0 = novo, 1 = email 1 enviado, etc)
+  status        String   @default("ACTIVE") // Status: ACTIVE, RECOVERED, CANCELED
+
+  iSetCreatedAt DateTime // Data de criação do pedido na iSet
+  createdAt     DateTime @default(now()) // Data que inserimos no nosso sistema
+  updatedAt     DateTime @updatedAt // Data da última atualização no nosso sistema
+}
